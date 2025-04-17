@@ -4,12 +4,9 @@ App para registrar y calcular horas trabajadas
 
 import toga
 from toga.style import Pack
-from toga.style.pack import COLUMN, ROW
-from datetime import datetime
-from datetime import timedelta
-from datetime import date
+from toga.style.pack import COLUMN
+from datetime import datetime, timedelta, date
 import sqlite3
-import time
 
 
 class HorasTrabajadas(toga.App):
@@ -18,31 +15,26 @@ class HorasTrabajadas(toga.App):
         self.cur = self.conn.cursor()
         self.fecha = date.today()
 
-
         self.main_box = toga.Box(style=Pack(direction=COLUMN, padding=10))
+        self.reiniciar_pantalla()
+
+        self.main_window = toga.MainWindow(title=self.formal_name)
+        self.main_window.content = self.main_box
+        self.main_window.show()
+
+    def reiniciar_pantalla(self, widget=None):
+        
+        self.main_box.children.clear()
 
         self.hora_inicio_input = toga.TextInput(placeholder='Hora inicio (HH:MM)', style=Pack(padding=5))
         self.hora_fin_input = toga.TextInput(placeholder='Hora fin (HH:MM)', style=Pack(padding=5))
 
         self.result_label = toga.Label("Horas trabajadas: ", style=Pack(padding=5))
         self.result_label_historial = toga.Label("Horas trabajadas en el mes: ", style=Pack(padding=5))
-        self.resultado_por_fecha = toga.Label("Horas trabajadas en la fecha: ", style=Pack(padding=5))
 
-        calcular_button = toga.Button(
-            'Calcular y guardar',
-            on_press=self.calculo_horas,
-            style=Pack(padding=5)
-        )
-        historial_button = toga.Button(
-            'Historial',
-            on_press=self.mostrar_horas_trabajadas,
-            style=Pack(padding=5)
-        )
-        historial_fecha_button = toga.Button(
-            'Historial por fecha',
-            on_press=self.fecha_particular,
-            style=Pack(padding=5)
-        )
+        calcular_button = toga.Button('Calcular y guardar', on_press=self.calculo_horas, style=Pack(padding=5))
+        historial_button = toga.Button('Historial', on_press=self.mostrar_horas_trabajadas, style=Pack(padding=5))
+        historial_fecha_button = toga.Button('Historial por fecha', on_press=self.fecha_particular, style=Pack(padding=5))
 
         self.main_box.add(self.hora_inicio_input)
         self.main_box.add(self.hora_fin_input)
@@ -51,16 +43,13 @@ class HorasTrabajadas(toga.App):
         self.main_box.add(historial_button)
         self.main_box.add(self.result_label_historial)
         self.main_box.add(historial_fecha_button)
-
         self.main_window = toga.MainWindow(title=self.formal_name)
         self.main_window.content = self.main_box
-        self.main_window.show()                
+
 
     def inicializar_base_datos(self):
-        conn = self.conn
         cur = self.cur
-        execute = cur.execute
-        execute("""
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS horas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 fecha TEXT,
@@ -69,94 +58,102 @@ class HorasTrabajadas(toga.App):
                 horas_trabajadas TEXT
             )
         """)
-        conn.commit()
-#        conn.close()
+        self.conn.commit()
 
-
-    def calculo_horas(self,widget):
-        self.inicializar_base_datos() # Se inicializa la base de datos (se crea la tabla)
-        """
-        Calcula la diferencia de horas entre dos momentos del día.
-
-        :param hora_inicio: Hora de inicio en formato "HH:MM"
-        :param hora_fin: Hora de fin en formato "HH:MM"
-        :return: Diferencia de horas como un objeto timedelta
-        """
-        self.hora_inicio = self.hora_inicio_input.value
-        self.hora_fin = self.hora_fin_input.value
+    def calculo_horas(self, widget):
+        self.inicializar_base_datos()
+        inicio = self.hora_inicio_input.value
+        fin = self.hora_fin_input.value
         fecha = str(self.fecha)
-        inicio = self.hora_inicio
-        fin = self.hora_fin
-        hora_inicio = datetime.strptime(inicio, "%H:%M")
-        hora_fin = datetime.strptime(fin, "%H:%M")
+
+        try:
+            hora_inicio = datetime.strptime(inicio, "%H:%M")
+            hora_fin = datetime.strptime(fin, "%H:%M")
+        except ValueError:
+            self.result_label.text = "Formato inválido. Usá HH:MM"
+            return
+
         if hora_fin < hora_inicio:
             hora_fin += timedelta(days=1)
         diferencia = hora_fin - hora_inicio
         self.result_label.text = f"Horas trabajadas: {diferencia}"
 
-        # Guardar en la base de datos
-        conn = self.conn
-        cur = self.cur
-        execute = cur.execute
-        execute("""
+        self.cur.execute("""
             INSERT INTO horas (fecha, hora_inicio, hora_fin, horas_trabajadas)
             VALUES (?, ?, ?, ?)
         """, (fecha, inicio, fin, str(diferencia)))
-        conn.commit()
-        #conn.close()
-        return diferencia
-    
-
-
+        self.conn.commit()
 
     def mostrar_horas_trabajadas(self, widget):
-        """
-        Muestra todas las horas trabajadas en un mes registradas en la base de datos.
-        :return: Lista de horas trabajadas
-        """
-        conn = self.conn
-        cur = self.cur
-        execute = cur.execute
-        execute("""SELECT sum(horas_trabajadas) FROM horas
-                WHERE strftime('%Y-%m', fecha) = strftime('%Y-%m', 'now')
-                GROUP BY strftime('%Y-%m', fecha)        
-                """)
-        rows = cur.fetchall()
-        rows = rows[0]
-        print(rows)
-        self.result_label_historial.text = f"Horas trabajadas en el mes: {rows[0]}"
-        return rows
-    
+        self.cur.execute("""
+            SELECT sum(horas_trabajadas) FROM horas
+            WHERE strftime('%Y-%m', fecha) = strftime('%Y-%m', 'now')
+        """)
+        rows = self.cur.fetchall()
+        result = rows[0][0]
+#        total = timedelta()
+
+#        for row in rows:
+#            try:
+#                h, m, s = map(int, row[0].split(":"))
+#                total += timedelta(hours=h, minutes=m, seconds=s)
+#            except Exception:
+#                continue
+
+        self.result_label_historial.text = f"Horas trabajadas en el mes: {result} horas"
+
+
+
     def mostrar_horas_trabajadas_por_fecha(self, widget):
-        fecha = self.str_fecha
-        
+        fecha = self.por_fecha.value.strip()
+        if not fecha:
+            self.resultado_por_fecha.text = "Ingresá una fecha válida."
+            return
 
-        conn = self.conn
-        cur = self.cur
-#        fecha = input("Ingresa la fecha que queres consultar (YYYY-MM-DD): ")
-        execute = cur.execute
-        execute(f"SELECT * FROM horas WHERE fecha='{fecha}'")
-        rows = cur.fetchall()
+        self.cur.execute("SELECT hora_inicio, hora_fin, horas_trabajadas FROM horas WHERE fecha=?", (fecha,))
+        rows = self.cur.fetchall()
 
-        print(rows)
-        self.resultado_por_fecha.text = f"Horas trabajadas en la fecha {fecha}: {rows}"
-        self.main_box.add(self.resultado_por_fecha)        
-        return
-    
+        if not rows:
+            self.resultado_por_fecha.text = f"No hay registros para {fecha}"
+            return
+
+        total = timedelta()
+        detalle = ""
+
+        for inicio, fin, duracion in rows:
+            try:
+                h, m, s = map(int, duracion.split(":"))
+                total += timedelta(hours=h, minutes=m, seconds=s)
+                detalle += f"{inicio} - {fin} ({duracion})\n"
+            except Exception:
+                continue
+
+        self.resultado_por_fecha.text = f"Horas trabajadas el {fecha}: {total}\n\n{detalle}"
+        self.main_window = toga.MainWindow(title=self.formal_name)
+        self.main_window.content = self.main_box
+
     def fecha_particular(self, widget):
-#        self.por_fecha_title = toga.Label("Ingresa la fecha que quieres consultar en formato (YYYY-MM-DD): ", style=Pack(padding=5))
-        self.por_fecha = toga.TextInput(placeholder="Ingresa la fecha que quieres consultar en formato (YYYY-MM-DD): ", style=Pack(padding=7))
-#        self.main_box.add(self.por_fecha_title)
-        self.main_box.add(self.por_fecha)
-        fecha = self.por_fecha.value
-        self.str_fecha = str(fecha)
-        horas_trabajadas_button = toga.Button(
-            'Buscar',
-            on_press=self.mostrar_horas_trabajadas_por_fecha,
-            style=Pack(padding=5)
+        # Crea un nuevo contenedor en vez de reutilizar el viejo
+        self.main_box.children.clear()
+
+        # Reemplazamos la box por una completamente nueva (opcional pero más seguro)
+        self.main_box = toga.Box(style=Pack(direction=COLUMN, padding=10))
+        self.main_window.content = self.main_box
+
+        self.por_fecha = toga.TextInput(
+            placeholder="Ingresa la fecha que quieres consultar (YYYY-MM-DD)",
+            style=Pack(padding=7)
         )
-        self.main_box.add(horas_trabajadas_button)        
-        return 
-    
+        buscar_button = toga.Button('Buscar', on_press=self.mostrar_horas_trabajadas_por_fecha, style=Pack(padding=5))
+        volver_button = toga.Button('Volver al inicio', on_press=self.reiniciar_pantalla, style=Pack(padding=5))
+        self.resultado_por_fecha = toga.Label("", style=Pack(padding=5))
+
+        self.main_box.add(self.por_fecha)
+        self.main_box.add(buscar_button)
+        self.main_box.add(volver_button)
+        self.main_box.add(self.resultado_por_fecha)
+
+
+
 def main():
     return HorasTrabajadas()

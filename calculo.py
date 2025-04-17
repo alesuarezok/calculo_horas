@@ -5,7 +5,7 @@ import sqlite3
 
 
 class Calculo:
-    def _init_(self):
+    def __init__(self):
         self.conn = sqlite3.connect('horas_trabajadas.db')
         self.cur = self.conn.cursor()
 #        self.execute = self.conn.execute()
