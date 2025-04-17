@@ -9,6 +9,7 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import date
 import sqlite3
+import time
 
 
 class HorasTrabajadas(toga.App):
@@ -25,6 +26,7 @@ class HorasTrabajadas(toga.App):
 
         self.result_label = toga.Label("Horas trabajadas: ", style=Pack(padding=5))
         self.result_label_historial = toga.Label("Horas trabajadas en el mes: ", style=Pack(padding=5))
+        self.resultado_por_fecha = toga.Label("Horas trabajadas en la fecha: ", style=Pack(padding=5))
 
         calcular_button = toga.Button(
             'Calcular y guardar',
@@ -38,7 +40,7 @@ class HorasTrabajadas(toga.App):
         )
         historial_fecha_button = toga.Button(
             'Historial por fecha',
-            on_press=self.mostrar_horas_trabajadas_por_fecha,
+            on_press=self.fecha_particular,
             style=Pack(padding=5)
         )
 
@@ -125,10 +127,36 @@ class HorasTrabajadas(toga.App):
         self.result_label_historial.text = f"Horas trabajadas en el mes: {rows[0]}"
         return rows
     
+    def mostrar_horas_trabajadas_por_fecha(self, widget):
+        fecha = self.str_fecha
+        
 
+        conn = self.conn
+        cur = self.cur
+#        fecha = input("Ingresa la fecha que queres consultar (YYYY-MM-DD): ")
+        execute = cur.execute
+        execute(f"SELECT * FROM horas WHERE fecha='{fecha}'")
+        rows = cur.fetchall()
 
-
-
-
+        print(rows)
+        self.resultado_por_fecha.text = f"Horas trabajadas en la fecha {fecha}: {rows}"
+        self.main_box.add(self.resultado_por_fecha)        
+        return
+    
+    def fecha_particular(self, widget):
+#        self.por_fecha_title = toga.Label("Ingresa la fecha que quieres consultar en formato (YYYY-MM-DD): ", style=Pack(padding=5))
+        self.por_fecha = toga.TextInput(placeholder="Ingresa la fecha que quieres consultar en formato (YYYY-MM-DD): ", style=Pack(padding=7))
+#        self.main_box.add(self.por_fecha_title)
+        self.main_box.add(self.por_fecha)
+        fecha = self.por_fecha.value
+        self.str_fecha = str(fecha)
+        horas_trabajadas_button = toga.Button(
+            'Buscar',
+            on_press=self.mostrar_horas_trabajadas_por_fecha,
+            style=Pack(padding=5)
+        )
+        self.main_box.add(horas_trabajadas_button)        
+        return 
+    
 def main():
     return HorasTrabajadas()
